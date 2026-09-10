@@ -61,25 +61,60 @@
 | 产品源码 | 服务器 A 本地目录，供 server ClaudeCode 使用 |
 | local ClaudeCode | 运行 cc-web 的客户端机器上的 ClaudeCode，由 cc-web Rust 后端调用 |
 | server ClaudeCode | 服务器 A 上 patch_search 调用的 ClaudeCode |
-| 前端 API 地址 | `patches.js` 顶部配置 `PATCH_SEARCH_API` |
+| 前端 API 地址 | cc-web 编译期内嵌（`src/patch_servers.json`，可配多条，一般对应同一服务的内网穿透多隧道），经 `GET /api/patch-config` 下发前端；前端按地址轮询，连不上/超时自动切换下一条 |
+
+补丁中心连接地址的配置方式（区别于上表 6.1 中 patch_search 自身的 `config.yaml`）：patch_search 服务地址在 `src/patch_servers.json` 中**配置多条**（编译期内嵌），通过 `include_str!` 打进 cc-web.exe，部署后不可修改。当前示例（内网穿透 4 条隧道，均指向同一 patch_search 服务）：
+
+```json
+{
+  "patch_search_servers": [
+    "http://fast9.shenzhuo.vip:22664",
+    "http://quick9.shenzhuo.vip:13272",
+    "http://quick9.shenzhuo.vip:26073",
+    "http://quick9.shenzhuo.vip:10545"
+  ]
+}
+```
+
+- 修改只需改该文件并重新编译 cc-web（`build.bat`），不依赖运行时 `patch_config.json`（原 exe 旁运行时配置文件机制已移除）。
+- `GET /api/patch-config` 返回 `{ "patch_search_servers": [...] }`。补丁中心页面启动时先拉取它取地址列表。
+- 前端轮询/故障切换语义（`patches.js` 与 `workflow_run.html` 相同）：每个请求从轮询游标处取一条起始地址（游标后移实现轮询）；**连不上或请求超时**就自动切换下一条，**全部地址都失败（均超时/无法连接）才报错**；只要收到了 HTTP 响应（无论状态码）就视为该地址可达、应答权威，不再切换（避免把服务端真实报错误判成隧道故障去重发）。
+- 下载、补丁上传（XHR）、流程 SSE 建流也接入同一切换逻辑：建流/下载/上传在某条地址上连不上或超时则换下一条。超时仅覆盖“建立连接、等首个响应”，拿到响应头即停止计时，不影响长时间 SSE 流程与本地 Claude 执行。
 
 ---
 
 ## 三、cc-web 页面设计
 
-### 3.1 页面入口和顶部切换
+### 3.1 页面入口和整体导航
 
-- 默认访问 `/` 进入 Chat。
-- 点击 Patches 进入 `/patches.html`。
-- `patches.html` 中点击 Chat 返回 `/`。
-- Chat/Patches 按钮仅负责页面切换，不修改现有聊天业务逻辑。
-- 主题复用现有 `localStorage['cc-web-theme']`，补丁页面读取相同 key。
+- 页面入口：
+  - `/`：Chat（聊天页），无补丁左侧固定菜单。
+  - `/patches.html`：补丁中心主页面。未登录时显示登录卡片，登录成功后进入功能区（左侧固定菜单 + 功能 Tab）。
+  - `/workflow_run.html?run_id=…`：智能开发流程运行详情页。从智能开发的"启动流程"或运行记录"查看"进入，要求已登录（未提供登录/退出入口）。
+- 各补丁页顶栏（`.patch-topbar`）右侧有「聊天 / 补丁」模式切换：聊天 → `/`，补丁 → 补丁页（workflow_run.html 的「补丁」回到 `/patches.html?tab=smart`）。按钮仅负责页面切换，不修改现有聊天业务逻辑。
+- 登录态与偏好同一站点各页共享：token 存 `localStorage['patch-search-access-token']`；主题复用 `cc-web-theme`；左侧菜单折叠状态存 `cc-web-patch-sidenav`。
+- 左侧固定菜单出现在 `patches.html` 与 `workflow_run.html`；只在登录态（`html.patch-auth`）显示，退出登录/会话失效后隐藏；Chat 页（`/`）不展示。
 
-### 3.2 页面结构（顶部 Tab + 左侧仪表盘）
+### 3.2 页面结构（登录卡 + 左侧固定菜单 + 功能 Tab）
 
-`patches.html` 顶部为登录卡片，登录成功后展示 Tab 导航和左侧仪表盘（个人统计、贡献榜、活跃榜）。
+`patches.html` 打开后先按是否已登录切换两类视图：
 
-Tab 列表（权限控制）：
+- **未登录**：`<html>` 无 `patch-auth` 类 → 左侧固定菜单整段隐藏（`html:not(.patch-auth) .patch-sidenav{display:none}`，内容区 `margin-left` 归零），居中显示登录卡片（用户名 / 密码 / 登录按钮），登录成功后进入功能区。
+- **已登录**：显示左侧固定菜单与功能区，隐藏登录卡片。会话失效（401）时回到登录卡状态并提示重新登录。
+
+**左侧固定菜单（`.patch-sidenav`）**——两侧补丁页共用同一套结构与逻辑：
+
+- 固定于视口左侧，宽 `--patch-sidenav-w`（196px），右侧内容区 `.patch-page` 用 `margin-left` 让位；可折叠为纯图标栏（60px，`html.sidenav-collapsed`），状态持久化到 `cc-web-patch-sidenav`，head 内联脚本提前应用避免刷新闪烁。
+- 菜单项与功能区顶部 Tab **一一对应**，文案、顺序完全一致（图标 + 文字），共 10 项：search 普通检索 → upload 补丁上传 → mine 我的补丁 → smart 智能开发 → flow 流程设置 → prompt 提示词设置 → template 流程模板设置 → analysis 待分析补丁 → product 产品版本管理 → directory 工作目录。
+- 点击菜单项：若本页存在对应且可见的 Tab（已登录）则在页内切换并同步 URL `?tab=`；否则走超链接跳到 `/patches.html?tab=…`（如从运行详情页进入）。当前项高亮 `active`。
+- 可见性联动（`patchSyncSidenavVisibility()`）：菜单项 `hidden` 与其对应 Tab 的 `hidden` 一致，Tab 由登录/角色决定（见下表）；workflow_run.html 无 Tab 条，单独在拉取 `/api/auth/me` 后按 `role === 'admin'` 控制 analysis / product 两项。
+
+**功能区（登录后）**——`.patch-auth-layout` 为两栏网格（主区 `.patch-main-fill` 全宽）：
+
+- 左栏 `.patch-user-sidebar`（sticky）：个人统计「我的数据」、贡献榜 TOP 10、活跃榜 TOP 10。
+- 右栏 `.patch-auth-content`：顶部为 `.patch-tabs` 功能 Tab 条（横向可滚动，是菜单可见性的依据），下方为各 `.patch-tab-panel` 内容面板。
+
+功能 Tab 列表（登录后按角色显示/隐藏，左侧菜单自动同步）：
 
 | Tab | 名称 | 权限 |
 |---|---|---|
@@ -87,11 +122,14 @@ Tab 列表（权限控制）：
 | upload | 补丁上传 | 登录用户 |
 | mine | 我的补丁 | 登录用户 |
 | smart | 智能开发 | 登录用户 |
-| flow | 流程设置 | 管理员（也可开放给普通用户管理自己的流程） |
-| prompt | 提示词设置 | 管理员（也可开放给普通用户管理自己的提示词） |
-| template | 流程模板设置 | 管理员（也可开放给普通用户管理自己的模板） |
+| flow | 流程设置 | 登录用户（各自管理自有配置；管理员创建的共享只读） |
+| prompt | 提示词设置 | 登录用户（各自管理自有配置；管理员创建的共享只读） |
+| template | 流程模板设置 | 登录用户（各自管理自有配置；管理员创建的共享只读） |
 | analysis | 待分析补丁 | 仅管理员 |
+| product | 产品版本管理 | 仅管理员 |
 | directory | 工作目录 | 登录用户 |
+
+非管理员登录时强制落到 search Tab；普通用户即便手动带 `?tab=analysis|product` 也会被重置回 search。
 
 ### 3.3 普通检索
 
@@ -773,7 +811,7 @@ auth:
 | 参数 | 类型 | 含义和使用规则 |
 |---|---|---|
 | `server.host` | 字符串 | FastAPI/Uvicorn 监听地址。`0.0.0.0` 表示监听服务器所有网卡，便于浏览器从其他机器访问。 |
-| `server.port` | 整数 | patch_search HTTP 服务端口。防火墙、安全组和前端 `PATCH_SEARCH_API` 必须一致。 |
+| `server.port` | 整数 | patch_search HTTP 服务端口。防火墙、安全组和前端连接地址（cc-web `src/patch_servers.json` 中配置的地址）必须一致。 |
 
 #### 数据库配置 `database`
 
@@ -1561,6 +1599,13 @@ Invoke-WebRequest http://127.0.0.1:13587/api/health
 ### cc-web
 
 - 不新增第三方前端依赖，使用原生 HTML/CSS/JavaScript。
+
+```
+cargo build --release
+target\release\cc-web.exe
+```
+
+
 
 ---
 

@@ -7,9 +7,56 @@
     <meta name="theme-color" content="#f7f8fa">
     <title>补丁中心 · CC-Web</title>
     <script>try{if(localStorage.getItem('cc-web-help-panel')==='closed'){document.documentElement.classList.add('help-panel-closed');}}catch(e){}</script>
+    <script>try{if(localStorage.getItem('cc-web-patch-sidenav')==='0'){document.documentElement.classList.add('sidenav-collapsed');}}catch(e){}</script>
+    <script>try{if(localStorage.getItem('patch-search-access-token')){document.documentElement.classList.add('patch-auth');}}catch(e){}</script>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <nav class="patch-sidenav" id="patchSidenav" aria-label="主导航">
+        <button id="patchSidenavToggle" class="patch-sidenav-toggle" type="button" title="收起菜单" aria-expanded="true" aria-label="收起菜单">‹</button>
+        <div class="patch-sidenav-items">
+            <a class="patch-sidenav-item" data-sidenav-tab="search" href="/patches.html?tab=search" title="普通检索">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span class="patch-sidenav-label">普通检索</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="upload" href="/patches.html?tab=upload" title="补丁上传">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span class="patch-sidenav-label">补丁上传</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="mine" href="/patches.html?tab=mine" title="我的补丁">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span class="patch-sidenav-label">我的补丁</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="smart" href="/patches.html?tab=smart" title="智能开发">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                <span class="patch-sidenav-label">智能开发</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="flow" href="/patches.html?tab=flow" title="流程设置" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                <span class="patch-sidenav-label">流程设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="prompt" href="/patches.html?tab=prompt" title="提示词设置" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span class="patch-sidenav-label">提示词设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="template" href="/patches.html?tab=template" title="流程模板设置" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span class="patch-sidenav-label">流程模板设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="analysis" href="/patches.html?tab=analysis" title="待分析补丁" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                <span class="patch-sidenav-label">待分析补丁</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="product" href="/patches.html?tab=product" title="产品版本管理" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <span class="patch-sidenav-label">产品版本管理</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="directory" href="/patches.html?tab=directory" title="工作目录">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14l1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>
+                <span class="patch-sidenav-label">工作目录</span>
+            </a>
+        </div>
+    </nav>
     <div class="patch-page">
         <header class="patch-topbar">
             <div class="patch-brand">⚡ CC-Web</div>
@@ -27,11 +74,9 @@
             </div>
         </header>
 
-        <main class="patch-main">
+        <main class="patch-main patch-main-fill">
             <div id="patchLoginCard" class="patch-card">
                 <h2>登录 patch_search</h2>
-                <label class="sr-only" for="patchLoginServer">服务端地址</label>
-                <input id="patchLoginServer" class="patch-input" autocomplete="off" spellcheck="false" placeholder="服务端地址">
                 <div class="patch-search-row">
                     <input id="patchLoginUsername" class="patch-input" autocomplete="username" placeholder="用户名">
                     <input id="patchLoginPassword" class="patch-input" type="password" autocomplete="current-password" placeholder="密码">
@@ -39,9 +84,8 @@
                 </div>
                 <div id="patchLoginMessage" class="patch-message"></div>
             </div>
-            <div id="patchAuthenticatedContent" hidden>
-            <div class="patch-auth-layout">
-                <aside class="patch-user-sidebar">
+            <div class="patch-auth-layout" id="patchAuthLayout" hidden>
+                <aside class="patch-user-sidebar" id="patchUserSidebar">
                     <section class="patch-card patch-user-summary">
                         <h3>我的数据</h3>
                         <div id="patchUserMetrics" class="patch-user-metrics">正在加载...</div>
@@ -200,7 +244,6 @@
             </section>
                 </div>
             </div>
-            </div>
         </main>
     </div>
 
@@ -223,7 +266,7 @@
                 <h3>智能开发</h3>
                 <ul>
                     <li>选择<b>流程模板</b>并输入业务需求后点击开始流程。</li>
-                    <li>每个步骤执行完成后需要点击<b>下一步</b>才会继续。</li>
+                    <li>每个步骤执行完成后需要点击<b>确认下一步</b>才会继续。</li>
                     <li>点<b>结束流程</b>会终止后续步骤，历史记录仍会保留。</li>
                 </ul>
             </section>

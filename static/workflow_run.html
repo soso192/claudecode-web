@@ -7,9 +7,56 @@
     <meta name="theme-color" content="#f7f8fa">
     <title>流程运行详情 · CC-Web</title>
     <script>try{if(localStorage.getItem('cc-web-help-panel')==='closed'){document.documentElement.classList.add('help-panel-closed');}}catch(e){}</script>
+    <script>try{if(localStorage.getItem('cc-web-patch-sidenav')==='0'){document.documentElement.classList.add('sidenav-collapsed');}}catch(e){}</script>
+    <script>try{document.documentElement.classList.add('patch-auth');}catch(e){}</script>
     <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <nav class="patch-sidenav" id="patchSidenav" aria-label="主导航">
+        <button id="patchSidenavToggle" class="patch-sidenav-toggle" type="button" title="收起菜单" aria-expanded="true" aria-label="收起菜单">‹</button>
+        <div class="patch-sidenav-items">
+            <a class="patch-sidenav-item" data-sidenav-tab="search" href="/patches.html?tab=search" title="普通检索">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span class="patch-sidenav-label">普通检索</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="upload" href="/patches.html?tab=upload" title="补丁上传">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span class="patch-sidenav-label">补丁上传</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="mine" href="/patches.html?tab=mine" title="我的补丁">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span class="patch-sidenav-label">我的补丁</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="smart" href="/patches.html?tab=smart" title="智能开发">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                <span class="patch-sidenav-label">智能开发</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="flow" href="/patches.html?tab=flow" title="流程设置">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                <span class="patch-sidenav-label">流程设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="prompt" href="/patches.html?tab=prompt" title="提示词设置">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span class="patch-sidenav-label">提示词设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="template" href="/patches.html?tab=template" title="流程模板设置">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span class="patch-sidenav-label">流程模板设置</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="analysis" href="/patches.html?tab=analysis" title="待分析补丁" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                <span class="patch-sidenav-label">待分析补丁</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="product" href="/patches.html?tab=product" title="产品版本管理" hidden>
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <span class="patch-sidenav-label">产品版本管理</span>
+            </a>
+            <a class="patch-sidenav-item" data-sidenav-tab="directory" href="/patches.html?tab=directory" title="工作目录">
+                <svg class="patch-sidenav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14l1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg>
+                <span class="patch-sidenav-label">工作目录</span>
+            </a>
+        </div>
+    </nav>
     <div class="patch-page">
         <header class="patch-topbar">
             <div class="patch-brand">⚡ CC-Web</div>
@@ -28,7 +75,7 @@
             <div class="patch-card workflow-run-page">
                 <div class="workflow-run-header">
                     <div><h2 id="workflowHistoryTitle">流程运行详情</h2><span id="workflowHistorySubtitle" class="workflow-result-subtitle"></span></div>
-                    <div class="workflow-run-actions"><button id="workflowHistoryRerun" type="button" class="patch-secondary-btn" hidden>重新执行</button><button id="workflowHistoryNext" type="button" class="patch-primary-btn" hidden>下一步</button></div>
+                    <div class="workflow-run-actions"><button id="workflowHistoryRerun" type="button" class="patch-secondary-btn" hidden>重新执行</button><button id="workflowHistoryNext" type="button" class="patch-primary-btn" hidden>确认下一步</button></div>
                 </div>
                 <div id="workflowHistoryMeta" class="workflow-result-meta"></div>
                 <div id="workflowHistoryInput" class="workflow-history-input"></div>
@@ -77,17 +124,43 @@
     <script>
     (function () {
         'use strict';
-        const PATCH_SEARCH_API = 'http://10.4.122.39:13587';
-        const PATCH_SEARCH_API_KEY = 'cc-web-patch-search-api';
         const PATCH_TOKEN_KEY = 'patch-search-access-token';
-        const patchState = { theme: 'light', authInvalidated: false, workflow: { runId: '', steps: [], currentStep: 0, status: '', source: null, lastEventId: 0, localExecutions: new Set() }, workflowSnapshot: null };
+        const PATCH_REQUEST_TIMEOUT = 60000; // 单个服务地址单次请求超时（毫秒），超时视为该地址不可用并切换下一条
+        const patchState = { theme: 'light', patchSearchServers: [], patchServerCursor: 0, authInvalidated: false, workflow: { runId: '', steps: [], currentStep: 0, status: '', source: null, lastEventId: 0, localExecutions: new Set() }, workflowSnapshot: null };
 
-        function patchApiBase() {
-            let saved = '';
-            try { saved = localStorage.getItem(PATCH_SEARCH_API_KEY) || ''; } catch {}
-            return saved.trim() || PATCH_SEARCH_API;
+        // 服务地址由 cc-web 在代码内写死（可配多条），经 /api/patch-config 下发。
+        // 轮询策略：每个请求取一个起始地址（游标后移实现轮询），若连不上/超时则依次切换下一条，
+        // 直到全部地址都失败才报错。
+        async function patchLoadConfig() {
+            const message = '无法连接补丁中心：cc-web 未运行或 /api/patch-config 接口异常，请稍后重试。';
+            let servers = [];
+            try {
+                const response = await fetch('/api/patch-config');
+                if (response.ok) {
+                    const config = await response.json().catch(() => ({}));
+                    if (config && typeof config === 'object') {
+                        if (Array.isArray(config.patch_search_servers)) servers = config.patch_search_servers;
+                        else if (config.patch_search_api) servers = [config.patch_search_api]; // 兼容旧格式
+                    }
+                }
+            } catch {}
+            servers = (servers || []).map(value => String(value).trim()).filter(Boolean);
+            if (!servers.length) throw new Error(message);
+            patchState.patchSearchServers = servers;
+            patchState.patchServerCursor = 0;
         }
-        function patchApiUrl(path) { return `${patchApiBase().replace(/\/+$/, '')}${path}`; }
+        // 单地址 fetch：叠加调用方 signal（若有）与超时；超时/连不上时 reject，由上层切换地址。
+        function patchFetchTimeout(url, init, timeoutMs) {
+            const controller = new AbortController();
+            const callerSignal = init && init.signal;
+            if (callerSignal) {
+                if (callerSignal.aborted) controller.abort();
+                else callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+            }
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+            return fetch(url, Object.assign({}, init, { signal: controller.signal }))
+                .then(response => { clearTimeout(timer); return response; }, error => { clearTimeout(timer); throw error; });
+        }
         function patchToken() { return localStorage.getItem(PATCH_TOKEN_KEY) || ''; }
         function patchEscape(value) {
             const div = document.createElement('div');
@@ -126,15 +199,35 @@
             const headers = new Headers(options.headers || {});
             const requestToken = patchToken();
             if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`);
-            const response = await fetch(patchApiUrl(path), {...options, headers});
-            const payload = await response.json().catch(() => ({}));
-            if (response.status === 401) {
-                if (patchToken() === requestToken) patchHandleUnauthorized();
-                throw new Error('登录已失效，请重新登录');
+            const servers = patchState.patchSearchServers;
+            if (!servers.length) throw new Error('补丁服务地址尚未加载，请稍候重试。');
+            const start = patchState.patchServerCursor % servers.length;
+            patchState.patchServerCursor = start + 1;
+            let lastError = null;
+            for (let attempt = 0; attempt < servers.length; attempt += 1) {
+                const base = servers[(start + attempt) % servers.length];
+                const url = `${base.replace(/\/+$/, '')}${path}`;
+                let response;
+                try {
+                    response = await patchFetchTimeout(url, { ...options, headers }, PATCH_REQUEST_TIMEOUT);
+                } catch (error) {
+                    if (options.signal && options.signal.aborted) throw error; // 调用方主动取消，不切换
+                    lastError = error;
+                    continue; // 连不上/超时：切换下一条地址
+                }
+                // 只要收到了 HTTP 响应（无论状态码）都视为该地址可达、应答权威，不再切换
+                const payload = await response.json().catch(() => ({}));
+                if (response.status === 401) {
+                    if (patchToken() === requestToken) patchHandleUnauthorized();
+                    throw new Error('登录已失效，请重新登录');
+                }
+                if (response.status === 403) throw new Error('权限不足');
+                if (!response.ok || payload.code !== 0) throw new Error(payload.message || payload.detail || '请求失败');
+                return payload.data;
             }
-            if (response.status === 403) throw new Error('权限不足');
-            if (!response.ok || payload.code !== 0) throw new Error(payload.message || payload.detail || '请求失败');
-            return payload.data;
+            const timedOut = lastError && lastError.name === 'AbortError';
+            const cause = lastError && lastError.message ? `（${lastError.message}）` : '';
+            throw new Error(`无法连接补丁中心：${servers.length} 条服务地址${timedOut ? '均已请求超时' : '均无法连接'}${cause}，请稍后重试。`);
         }
         function patchHandleUnauthorized() {
             if (patchState.authInvalidated) return;
@@ -393,7 +486,24 @@
             const controller = new AbortController();
             patchState.workflow.source = controller;
             (async () => {
-                const response = await fetch(patchApiUrl(`/api/workflows/runs/${encodeURIComponent(streamRunId)}/stream`), {headers: {Authorization: `Bearer ${patchToken()}`, 'Last-Event-ID': String(patchState.workflow.lastEventId || 0)}, signal: controller.signal});
+                const servers = patchState.patchSearchServers;
+                const streamPath = `/api/workflows/runs/${encodeURIComponent(streamRunId)}/stream`;
+                if (!servers.length) throw new Error('补丁服务地址尚未加载，请稍候重试。');
+                const start = patchState.patchServerCursor % servers.length;
+                patchState.patchServerCursor = start + 1;
+                let response = null;
+                for (let attempt = 0; attempt < servers.length; attempt += 1) {
+                    const base = servers[(start + attempt) % servers.length];
+                    const url = `${base.replace(/\/+$/, '')}${streamPath}`;
+                    try {
+                        response = await patchFetchTimeout(url, {headers: {Authorization: `Bearer ${patchToken()}`, 'Last-Event-ID': String(patchState.workflow.lastEventId || 0)}, signal: controller.signal}, PATCH_REQUEST_TIMEOUT);
+                    } catch (error) {
+                        if (controller.signal.aborted) throw error; // 用户关闭，不切换
+                        continue; // 连不上/超时：尝试下一条
+                    }
+                    break;
+                }
+                if (!response) throw new Error('无法连接补丁中心：所有服务地址均无法连接，请稍后重试。');
                 if (!response.ok) { if (response.status === 401) patchHandleUnauthorized(); throw new Error('流程连接失败'); }
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -461,12 +571,12 @@
             } catch (error) { patchShowError(error.message, '流程详情加载失败'); }
         }
         function initPage() {
-            patchInitTheme();
             const token = patchToken();
             const runId = new URLSearchParams(location.search).get('run_id');
             if (!token || !runId) { location.href = '/patches.html'; return; }
             patchRequest('/api/auth/me').then(me => {
                 document.getElementById('patchCurrentUser').textContent = `${me.display_name || me.username} (${me.role})`;
+                document.querySelectorAll('.patch-sidenav-item[data-sidenav-tab="analysis"], .patch-sidenav-item[data-sidenav-tab="product"]').forEach(item => { item.hidden = !(me.role === 'admin'); });
             }).catch(() => {});
             openWorkflowHistory(runId);
             document.getElementById('patchBackBtn').onclick = () => { location.href = '/patches.html?tab=smart'; };
@@ -507,7 +617,38 @@
                 }
             });
         }
-        initPage();
+        // 左侧固定导航：折叠/展开 + 高亮当前（流程运行详情归入“智能开发”）
+        (function patchSidenavInit() {
+            const toggle = document.getElementById('patchSidenavToggle');
+            const syncToggle = () => {
+                if (!toggle) return;
+                const collapsed = document.documentElement.classList.contains('sidenav-collapsed');
+                toggle.textContent = collapsed ? '›' : '‹';
+                toggle.title = collapsed ? '展开菜单' : '收起菜单';
+                toggle.setAttribute('aria-label', toggle.title);
+                toggle.setAttribute('aria-expanded', String(!collapsed));
+            };
+            if (toggle) toggle.addEventListener('click', () => {
+                const collapsed = document.documentElement.classList.toggle('sidenav-collapsed');
+                try { localStorage.setItem('cc-web-patch-sidenav', collapsed ? '0' : '1'); } catch {}
+                syncToggle();
+            });
+            syncToggle();
+            const nav = document.getElementById('patchSidenav');
+            if (nav) nav.querySelectorAll('.patch-sidenav-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.sidenavTab === 'smart');
+            });
+        })();
+
+        patchInitTheme();
+        patchLoadConfig().then(initPage).catch(error => {
+            // initPage 未执行（正常流程才绑定），错误弹窗关闭按钮在此补绑
+            const close = () => { document.getElementById('patchErrorModal').hidden = true; };
+            document.getElementById('patchErrorClose').onclick = close;
+            document.getElementById('patchErrorConfirm').onclick = close;
+            document.getElementById('patchErrorModal').onclick = event => { if (event.target.id === 'patchErrorModal') close(); };
+            patchShowError(error.message, '补丁中心配置错误');
+        });
     })();
     </script>
 </body>

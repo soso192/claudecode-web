@@ -1,34 +1,54 @@
-const PATCH_SEARCH_API = 'http://10.4.122.39:13587';
-const PATCH_SEARCH_API_KEY = 'cc-web-patch-search-api';
 const PATCH_PAGE_SIZE = 10;
 const PATCH_TOKEN_KEY = 'patch-search-access-token';
+const PATCH_REQUEST_TIMEOUT = 60000; // 单个服务地址单次请求超时（毫秒），超时视为该地址不可用并切换下一条
 
-const patchState = { page: 1, keyword: '', files: [], theme: 'light', user: null, dashboard: null, authInvalidated: false, searchGeneration: 0, products: null, advancedOpen: false, advanced: { name: '', product: '', version: '', keyword: '', description: '' }, searchItems: [], admin: { kind: '', id: null, flows: [], prompts: [], templates: [], directories: [], directoryId: null, analysisPatches: [], selectedAnalysisIds: new Set(), analysisTimer: null, products: [], productId: null }, workflow: { runId: '', steps: [], currentStep: 0, status: '', source: null, token: '', lastEventId: 0, localExecutions: new Set(), templates: [] }, workflowHistory: { page: 1, size: 10, total: 0, items: [] }, workflowDetail: { runId: '', snapshot: null }, mine: { page: 1, size: 10, total: 0, items: [], generation: 0 } };
+const patchState = { page: 1, keyword: '', files: [], theme: 'light', patchSearchServers: [], patchServerCursor: 0, user: null, dashboard: null, authInvalidated: false, searchGeneration: 0, products: null, advancedOpen: false, advanced: { name: '', product: '', version: '', keyword: '', description: '' }, searchItems: [], admin: { kind: '', id: null, flows: [], prompts: [], templates: [], directories: [], directoryId: null, analysisPatches: [], selectedAnalysisIds: new Set(), analysisTimer: null, products: [], productId: null }, workflow: { runId: '', steps: [], currentStep: 0, status: '', source: null, token: '', lastEventId: 0, localExecutions: new Set(), templates: [] }, workflowHistory: { page: 1, size: 10, total: 0, items: [] }, workflowDetail: { runId: '', snapshot: null }, mine: { page: 1, size: 10, total: 0, items: [], generation: 0 } };
 
-function patchApiBase() {
-    let saved = '';
-    try { saved = localStorage.getItem(PATCH_SEARCH_API_KEY) || ''; } catch {}
-    return saved.trim() || PATCH_SEARCH_API;
+// 服务地址由 cc-web 在代码内写死（可配多条），经 /api/patch-config 下发。
+// 轮询策略：每个请求取一个起始地址（游标后移实现轮询），若连不上/超时则依次切换下一条，
+// 直到全部地址都失败才报错。以下 patchServerBase/patchApiUrl 用于非 patchRequest 的直连场景。
+function patchServerBase() {
+    const servers = patchState.patchSearchServers;
+    if (!servers.length) return '';
+    const base = servers[patchState.patchServerCursor % servers.length];
+    patchState.patchServerCursor += 1;
+    return base;
 }
 
 function patchApiUrl(path) {
-    return `${patchApiBase().replace(/\/+$/, '')}${path}`;
+    return `${patchServerBase().replace(/\/+$/, '')}${path}`;
 }
 
-function patchNormalizeServer(value) {
-    let v = (value || '').trim();
-    if (!v) return '';
-    if (!/^https?:\/\//i.test(v)) v = `http://${v}`;
-    return v.replace(/\/+$/, '');
+async function patchLoadConfig() {
+    const message = '无法连接补丁中心：cc-web 未运行或 /api/patch-config 接口异常，请稍后重试。';
+    let servers = [];
+    try {
+        const response = await fetch('/api/patch-config');
+        if (response.ok) {
+            const config = await response.json().catch(() => ({}));
+            if (config && typeof config === 'object') {
+                if (Array.isArray(config.patch_search_servers)) servers = config.patch_search_servers;
+                else if (config.patch_search_api) servers = [config.patch_search_api]; // 兼容旧格式
+            }
+        }
+    } catch {}
+    servers = (servers || []).map(value => String(value).trim()).filter(Boolean);
+    if (!servers.length) throw new Error(message);
+    patchState.patchSearchServers = servers;
+    patchState.patchServerCursor = 0;
 }
 
-function patchInitLoginServer() {
-    const input = document.getElementById('patchLoginServer');
-    if (!input) return;
-    let saved = '';
-    try { saved = localStorage.getItem(PATCH_SEARCH_API_KEY) || ''; } catch {}
-    input.value = saved.trim();
-    input.placeholder = `服务端地址，默认 ${PATCH_SEARCH_API}`;
+// 单地址 fetch：叠加调用方 signal（若有）与超时；超时/连不上时 reject，由上层切换地址。
+function patchFetchTimeout(url, init, timeoutMs) {
+    const controller = new AbortController();
+    const callerSignal = init && init.signal;
+    if (callerSignal) {
+        if (callerSignal.aborted) controller.abort();
+        else callerSignal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, Object.assign({}, init, { signal: controller.signal }))
+        .then(response => { clearTimeout(timer); return response; }, error => { clearTimeout(timer); throw error; });
 }
 
 function patchEscape(value) {
@@ -63,6 +83,61 @@ function patchSetTheme(theme) {
 function patchInitTheme() {
     const saved = localStorage.getItem('cc-web-theme');
     patchSetTheme(saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+}
+
+/* ── 左侧固定导航（与顶部菜单一致） ── */
+function patchSyncSidenavVisibility() {
+    const nav = document.getElementById('patchSidenav');
+    if (!nav) return;
+    nav.querySelectorAll('.patch-sidenav-item').forEach(item => {
+        const tabButton = item.dataset.sidenavTab && document.querySelector(`.patch-tab[data-tab="${item.dataset.sidenavTab}"]`);
+        if (tabButton) item.hidden = tabButton.hidden;
+    });
+}
+function patchSidenavSyncToggle() {
+    const toggle = document.getElementById('patchSidenavToggle');
+    if (!toggle) return;
+    const collapsed = document.documentElement.classList.contains('sidenav-collapsed');
+    toggle.textContent = collapsed ? '›' : '‹';
+    toggle.title = collapsed ? '展开菜单' : '收起菜单';
+    toggle.setAttribute('aria-label', toggle.title);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+}
+function patchToggleSidenav() {
+    const collapsed = document.documentElement.classList.toggle('sidenav-collapsed');
+    try { localStorage.setItem('cc-web-patch-sidenav', collapsed ? '0' : '1'); } catch {}
+    patchSidenavSyncToggle();
+}
+function patchSetSidenavActive(tab) {
+    const nav = document.getElementById('patchSidenav');
+    if (!nav) return;
+    nav.querySelectorAll('.patch-sidenav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.sidenavTab === tab);
+    });
+}
+function patchInitSidenav() {
+    const toggle = document.getElementById('patchSidenavToggle');
+    if (toggle) toggle.addEventListener('click', patchToggleSidenav);
+    patchSidenavSyncToggle();
+    const nav = document.getElementById('patchSidenav');
+    if (nav) nav.addEventListener('click', (event) => {
+        const item = event.target.closest('.patch-sidenav-item');
+        if (!item || !item.dataset.sidenavTab) return;
+        const tab = item.dataset.sidenavTab;
+        const tabButton = document.querySelector(`.patch-tab[data-tab="${tab}"]`);
+        // 本页存在且已登录时在页内切换；否则走链接跳转（如从流程详情页进入）
+        if (tabButton && !tabButton.hidden && patchToken()) {
+            event.preventDefault();
+            if (document.querySelector('.patch-tab.active')?.dataset.tab !== tab) patchSwitchTab(tab);
+            const url = new URL(location.href);
+            url.searchParams.set('tab', tab);
+            history.replaceState(null, '', url);
+        }
+    });
+    const urlTab = new URLSearchParams(location.search).get('tab');
+    const urlTabButton = urlTab && document.querySelector(`.patch-tab[data-tab="${urlTab}"]`);
+    const activeTab = urlTabButton ? urlTab : (document.querySelector('.patch-tab.active')?.dataset.tab || '');
+    patchSetSidenavActive(activeTab);
 }
 
 function patchShowError(message, title = '操作失败') {
@@ -103,7 +178,7 @@ function patchToken() { return localStorage.getItem(PATCH_TOKEN_KEY) || ''; }
 
 function patchSetAuthenticated(user) {
     const login = document.getElementById('patchLoginCard');
-    const content = document.getElementById('patchAuthenticatedContent');
+    const layout = document.getElementById('patchAuthLayout');
     const userLabel = document.getElementById('patchCurrentUser');
     const logout = document.getElementById('patchLogout');
     const configTabs = ['flow', 'prompt', 'template'].map(tab => document.querySelector(`.patch-tab[data-tab="${tab}"]`));
@@ -111,16 +186,19 @@ function patchSetAuthenticated(user) {
     const productTab = document.querySelector('.patch-tab[data-tab="product"]');
     const authenticated = Boolean(user);
     const isAdmin = authenticated && user.role === 'admin';
+    // 左侧固定菜单仅在登录态展示（聊天页/未登录登录卡不展示）
+    document.documentElement.classList.toggle('patch-auth', authenticated);
     const previousUserId = patchState.user?.id;
     const userChanged = previousUserId !== (user?.id ?? null);
     patchState.user = user || null;
     if (!authenticated || userChanged) resetWorkflowRunState();
     if (!authenticated) { patchState.dashboard = null; document.getElementById('patchUserMetrics').textContent = '请登录后查看'; document.getElementById('patchLeaderboard').textContent = '请登录后查看'; document.getElementById('patchActivityLeaderboard').textContent = '请登录后查看'; patchState.workflowHistory = {page: 1, size: 10, total: 0, items: []}; patchState.workflowDetail = {runId: '', snapshot: null}; document.getElementById('workflowHistoryBody').innerHTML = '<tr><td colspan="6" class="patch-empty">暂无流程运行记录</td></tr>'; patchState.mine = {page: 1, size: 10, total: 0, items: [], generation: 0}; const mineBody = document.getElementById('patchMineBody'); if (mineBody) mineBody.innerHTML = '<tr><td colspan="7" class="patch-empty">请登录后查看</td></tr>'; patchState.products = null; patchState.admin.products = []; patchState.admin.productId = null; const productBody = document.getElementById('patchProductBody'); if (productBody) productBody.innerHTML = '<tr><td colspan="4" class="patch-empty">请登录后查看</td></tr>'; }
     if (login) login.hidden = authenticated;
-    if (content) content.hidden = !authenticated;
+    if (layout) layout.hidden = !authenticated;
     configTabs.filter(Boolean).forEach(tab => { tab.hidden = !authenticated; });
     if (analysisTab) analysisTab.hidden = !isAdmin;
     if (productTab) productTab.hidden = !isAdmin;
+    patchSyncSidenavVisibility();
     const activeTab = document.querySelector('.patch-tab.active')?.dataset.tab;
     if (userChanged || !authenticated || (!isAdmin && ['analysis', 'product'].includes(activeTab))) patchSwitchTab('search');
     if (userChanged) {
@@ -166,15 +244,35 @@ async function patchRequest(path, options = {}) {
     const headers = new Headers(options.headers || {});
     const requestToken = patchToken();
     if (requestToken) headers.set('Authorization', `Bearer ${requestToken}`);
-    const response = await fetch(patchApiUrl(path), {...options, headers});
-    const payload = await response.json().catch(() => ({}));
-    if (response.status === 401) {
-        if (patchToken() === requestToken) patchHandleUnauthorized();
-        throw new Error('登录已失效，请重新登录');
+    const servers = patchState.patchSearchServers;
+    if (!servers.length) throw new Error('补丁服务地址尚未加载，请稍候重试。');
+    const start = patchState.patchServerCursor % servers.length;
+    patchState.patchServerCursor = start + 1;
+    let lastError = null;
+    for (let attempt = 0; attempt < servers.length; attempt += 1) {
+        const base = servers[(start + attempt) % servers.length];
+        const url = `${base.replace(/\/+$/, '')}${path}`;
+        let response;
+        try {
+            response = await patchFetchTimeout(url, { ...options, headers }, PATCH_REQUEST_TIMEOUT);
+        } catch (error) {
+            if (options.signal && options.signal.aborted) throw error; // 调用方主动取消，不切换
+            lastError = error;
+            continue; // 连不上/超时：切换下一条地址
+        }
+        // 只要收到了 HTTP 响应（无论状态码）都视为该地址可达、应答权威，不再切换
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+            if (patchToken() === requestToken) patchHandleUnauthorized();
+            throw new Error('登录已失效，请重新登录');
+        }
+        if (response.status === 403) throw new Error('权限不足');
+        if (!response.ok || payload.code !== 0) throw new Error(payload.message || payload.detail || '请求失败');
+        return payload.data;
     }
-    if (response.status === 403) throw new Error('权限不足');
-    if (!response.ok || payload.code !== 0) throw new Error(payload.message || payload.detail || '请求失败');
-    return payload.data;
+    const timedOut = lastError && lastError.name === 'AbortError';
+    const cause = lastError && lastError.message ? `（${lastError.message}）` : '';
+    throw new Error(`无法连接补丁中心：${servers.length} 条服务地址${timedOut ? '均已请求超时' : '均无法连接'}${cause}，请稍后重试。`);
 }
 
 // 产品/版本字典：[{id,name,sort_order,versions:[{id,version}]}]
@@ -193,15 +291,10 @@ function productVersionOptions(product) {
 }
 
 async function patchLogin() {
+    if (!patchState.patchSearchServers.length) { patchShowError('补丁服务地址尚未加载，请稍候重试。', '配置缺失'); return; }
     const username = document.getElementById('patchLoginUsername').value.trim();
     const password = document.getElementById('patchLoginPassword').value;
     const message = document.getElementById('patchLoginMessage');
-    // 登录页可配置服务端地址：有输入则覆盖默认地址，留空则回退到 patches.js 内置地址
-    const server = patchNormalizeServer(document.getElementById('patchLoginServer')?.value || '');
-    try {
-        if (server) localStorage.setItem(PATCH_SEARCH_API_KEY, server);
-        else localStorage.removeItem(PATCH_SEARCH_API_KEY);
-    } catch {}
     try {
         const data = await patchRequest('/api/auth/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password})});
         localStorage.setItem(PATCH_TOKEN_KEY, data.access_token);
@@ -571,30 +664,58 @@ function closeUploadModal() {
 
 function uploadOne(index, item, formData) {
     return new Promise((resolve) => {
-        const xhr = new XMLHttpRequest();
+        const servers = patchState.patchSearchServers;
         const progress = item.querySelector('.patch-progress span');
         const label = item.querySelector('.patch-progress em');
-        xhr.open('POST', patchApiUrl('/api/patches/upload'));
+        if (!servers.length) {
+            progress.style.width = '0%';
+            label.textContent = '网络错误';
+            item.classList.add('upload-failed');
+            resolve(false);
+            return;
+        }
         const token = patchToken();
-        if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.upload.onprogress = (event) => {
-            if (!event.lengthComputable) return;
-            const percent = Math.round(event.loaded / event.total * 100);
-            progress.style.width = `${percent}%`;
-            label.textContent = `${percent}%`;
+        const start = patchState.patchServerCursor % servers.length;
+        patchState.patchServerCursor = start + 1;
+        const startOne = (at) => {
+            const base = servers[(start + at) % servers.length];
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${base.replace(/\/+$/, '')}/api/patches/upload`);
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.timeout = 1200000; // 上传单个文件的最长等待（20 分钟），超时视为该地址不可用并切换
+            progress.style.width = '0%';
+            if (at > 0) label.textContent = '检测到地址异常，正在切换重试…';
+            xhr.upload.onprogress = (event) => {
+                if (!event.lengthComputable) return;
+                const percent = Math.round(event.loaded / event.total * 100);
+                progress.style.width = `${percent}%`;
+                label.textContent = `${percent}%`;
+            };
+            xhr.onload = () => {
+                let payload;
+                try { payload = JSON.parse(xhr.responseText); } catch { payload = {}; }
+                const uploadData = payload.data || {};
+                const success = xhr.status >= 200 && xhr.status < 300 && payload.code === 0 && uploadData.success && uploadData.success.length > 0 && (!uploadData.failed || uploadData.failed.length === 0);
+                const errorMessage = uploadData.failed && uploadData.failed[0] ? uploadData.failed[0].error : (payload.message || '上传失败');
+                label.textContent = success ? '上传完成，等待分析' : errorMessage;
+                item.classList.toggle('upload-failed', !success);
+                resolve(success);
+            };
+            // 收到任何 HTTP 响应都视为该地址可达、应答权威，不再切换；仅连不上/超时才换下一条
+            const retryNext = () => {
+                if (at + 1 >= servers.length) {
+                    label.textContent = '上传失败：所有服务地址均无法连接';
+                    item.classList.add('upload-failed');
+                    resolve(false);
+                    return;
+                }
+                startOne(at + 1);
+            };
+            xhr.onerror = retryNext;
+            xhr.ontimeout = retryNext;
+            xhr.send(formData);
         };
-        xhr.onload = () => {
-            let payload;
-            try { payload = JSON.parse(xhr.responseText); } catch { payload = {}; }
-            const uploadData = payload.data || {};
-            const success = xhr.status >= 200 && xhr.status < 300 && payload.code === 0 && uploadData.success && uploadData.success.length > 0 && (!uploadData.failed || uploadData.failed.length === 0);
-            const errorMessage = uploadData.failed && uploadData.failed[0] ? uploadData.failed[0].error : (payload.message || '上传失败');
-            label.textContent = success ? '上传完成，等待分析' : errorMessage;
-            item.classList.toggle('upload-failed', !success);
-            resolve(success);
-        };
-        xhr.onerror = () => { label.textContent = '网络错误'; item.classList.add('upload-failed'); resolve(false); };
-        xhr.send(formData);
+        startOne(0);
     });
 }
 
@@ -806,7 +927,7 @@ async function startWorkflow() {
 }
 
 async function downloadPatch(id, fallbackName) {
-    const url = patchApiUrl(`/api/patches/${encodeURIComponent(id)}/download`);
+    const servers = patchState.patchSearchServers;
     const modal = document.getElementById('patchDownloadModal');
     const closeBtn = document.getElementById('patchDownloadClose');
     const cancelBtn = document.getElementById('patchDownloadCancel');
@@ -816,8 +937,8 @@ async function downloadPatch(id, fallbackName) {
     const percentEl = document.getElementById('patchDownloadPercent');
     const sizeEl = document.getElementById('patchDownloadSize');
 
-    // 先弹出下载地址与进度，再开始下载
-    urlEl.textContent = url;
+    // 先弹出下载进度，再探测可用地址并开始下载
+    urlEl.textContent = '正在检测可用地址…';
     fileEl.textContent = fallbackName || id;
     bar.style.width = '0%'; percentEl.textContent = '0%'; sizeEl.textContent = '正在连接...';
     cancelBtn.textContent = '取消';
@@ -830,7 +951,23 @@ async function downloadPatch(id, fallbackName) {
     modal.onclick = event => { if (event.target === modal) close(); };
 
     try {
-        const response = await fetch(url, {headers: {Authorization: `Bearer ${patchToken()}`}, signal: controller.signal});
+        if (!servers.length) throw new Error('补丁服务地址尚未加载，请稍候重试。');
+        const start = patchState.patchServerCursor % servers.length;
+        patchState.patchServerCursor = start + 1;
+        let response = null;
+        for (let attempt = 0; attempt < servers.length; attempt += 1) {
+            const base = servers[(start + attempt) % servers.length];
+            const url = `${base.replace(/\/+$/, '')}/api/patches/${encodeURIComponent(id)}/download`;
+            urlEl.textContent = url;
+            try {
+                response = await patchFetchTimeout(url, {headers: {Authorization: `Bearer ${patchToken()}`}}, PATCH_REQUEST_TIMEOUT);
+            } catch (error) {
+                if (controller.signal.aborted) throw error; // 用户取消，不切换
+                continue; // 连不上/超时：尝试下一条
+            }
+            break;
+        }
+        if (!response) throw new Error('无法连接补丁中心：所有服务地址均无法连接，请稍后重试。');
         if (response.status === 401) { patchHandleUnauthorized(); throw new Error('请先登录'); }
         if (!response.ok) throw new Error('下载失败');
         const total = Number(response.headers.get('Content-Length') || 0);
@@ -906,6 +1043,7 @@ function patchSwitchTab(tab) {
     if (tab === 'product' && patchToken() && !patchState.authInvalidated) loadProducts();
     if (tab === 'mine' && patchToken() && !patchState.authInvalidated) loadMyPatches();
     if (tab === 'directory' && patchToken() && !patchState.authInvalidated) loadDirectories();
+    patchSetSidenavActive(tab);
 }
 
 async function loadDirectories() {
@@ -1183,6 +1321,16 @@ function openAdminForm(kind, data = {}, readOnly = false) {
     document.getElementById('patchAdminCancel').textContent = readOnly ? '关闭' : '取消';
     if (readOnly) title.textContent = title.textContent.replace('编辑', '查看');
     document.getElementById('patchAdminModal').hidden = false;
+}
+
+// 复制模板：为新模板建议一个不与现有模板冲突的编码（最终以服务端创建时校验为准）
+function cloneCodeSuggestion(baseCode) {
+    const base = `${String(baseCode || 'template').slice(0, 100)}-copy`;
+    const used = new Set((patchState.admin.templates || []).map(item => String(item.code)));
+    let code = base;
+    let suffix = 2;
+    while (used.has(code)) { code = `${base}-${suffix}`; suffix += 1; }
+    return code;
 }
 
 function workflowStepVariableOptions(stepIndex) {
@@ -1511,15 +1659,17 @@ function patchBindEvents() {
         }
         const adminClone = event.target.closest('[data-admin-clone]');
         if (adminClone) {
-            const id = adminClone.dataset.adminClone.split(':')[1];
-            patchRequest(`/api/workflows/templates/${encodeURIComponent(id)}/clone`, {method: 'POST'})
-                .then(result => {
-                    loadAdminSettings('template');
-                    adminMessage('template', `已复制为新模板：${result.code}`, false);
-                    patchRequest(`/api/workflows/templates/${result.id}`)
-                        .then(detail => openAdminForm('template', detail))
-                        .catch(error => adminMessage('template', error.message, true));
-                })
+            const [kind, id] = adminClone.dataset.adminClone.split(':');
+            if (kind !== 'template') return;
+            // 复制模板：以副本内容打开「新增流程模板」表单，编码可编辑，保存后才真正创建。
+            // 不再直接调用后端 clone 接口，否则打开的是编辑表单、编码被置为只读而无法修改。
+            patchRequest(`/api/workflows/templates/${encodeURIComponent(id)}`)
+                .then(detail => openAdminForm('template', {
+                    ...detail,
+                    id: null,
+                    code: cloneCodeSuggestion(detail.code),
+                    name: `${detail.name || ''}（副本）`.slice(0, 255),
+                }))
                 .catch(error => adminMessage('template', error.message, true));
             return;
         }
@@ -1560,13 +1710,20 @@ function patchBindEvents() {
 }
 
 patchInitTheme();
-patchInitLoginServer();
 patchBindEvents();
-patchRestoreAuth().then(authenticated => {
-    if (!authenticated) return;
-    // 从流程运行详情页返回时带 ?tab=smart，直接切到智能开发页签
-    const returnTab = new URLSearchParams(location.search).get('tab');
-    const tabButton = returnTab && document.querySelector(`.patch-tab[data-tab="${returnTab}"]`);
-    if (tabButton) { patchSwitchTab(returnTab); loadPatches(); loadDashboard(); }
-    else { loadPatches(); loadWorkflowTemplates(); loadDashboard(); restoreWorkflowRun(); loadWorkflowHistory(); }
+patchInitSidenav();
+// 先读取服务端 /api/patch-config（地址在 cc-web 代码内写死），异常时直接报错并中止后续请求
+patchLoadConfig().then(() => {
+    patchRestoreAuth().then(authenticated => {
+        if (!authenticated) return;
+        // 从流程运行详情页返回时带 ?tab=smart，直接切到智能开发页签
+        const returnTab = new URLSearchParams(location.search).get('tab');
+        const tabButton = returnTab && document.querySelector(`.patch-tab[data-tab="${returnTab}"]`);
+        if (tabButton) { patchSwitchTab(returnTab); loadPatches(); loadDashboard(); }
+        else { loadPatches(); loadWorkflowTemplates(); loadDashboard(); restoreWorkflowRun(); loadWorkflowHistory(); }
+    });
+}).catch(error => {
+    const status = document.getElementById('patchApiStatus');
+    if (status) { status.textContent = '配置缺失'; status.className = 'patch-api-status error'; }
+    patchShowError(error.message, '补丁中心配置错误');
 });

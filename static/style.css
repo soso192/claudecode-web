@@ -1123,6 +1123,7 @@ html.help-panel-closed .help-panel { transform: translateX(102%); }
 .patch-api-status.online { color: var(--success); }
 .patch-api-status.error { color: var(--error); }
 .patch-main { max-width: 1440px; margin: 0 auto; padding: 28px 24px 48px; }
+.patch-main-fill { max-width: none; }
 .patch-auth-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
 .patch-user-sidebar { position: sticky; top: 20px; display: grid; gap: 16px; }
 .patch-user-summary, .patch-leaderboard { padding: 18px; }
@@ -1161,7 +1162,6 @@ html.help-panel-closed .help-panel { transform: translateX(102%); }
 #patchLoginCard h2 { margin-bottom: 18px; font-size: 20px; letter-spacing: -.02em; }
 #patchLoginCard .patch-search-row { align-items: center; }
 #patchLoginCard .patch-input { min-height: 42px; }
-#patchLoginCard #patchLoginServer { margin-bottom: 10px; }
 .patch-search-card { padding: 12px 14px; margin-bottom: 16px; }
 .patch-search-row { display: flex; gap: 10px; }
 .patch-search-row .patch-input { flex: 1; min-width: 0; }
@@ -1402,3 +1402,74 @@ body.patch-col-resizing * { cursor: col-resize !important; user-select: none !im
     .template-step-actions { width: 100%; }
     .template-step-actions .patch-link-btn { flex: 1; }
 }
+
+/* ── 左侧固定导航栏（补丁中心所有页面共享，可收起/展开） ── */
+:root {
+    --patch-sidenav-w: 196px;
+    --patch-sidenav-w-collapsed: 60px;
+}
+.patch-sidenav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: var(--patch-sidenav-w);
+    padding: 12px 10px;
+    box-sizing: border-box;
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    transition: width var(--duration-fast) var(--ease-standard);
+}
+.patch-sidenav + .patch-page {
+    margin-left: var(--patch-sidenav-w);
+    transition: margin-left var(--duration-fast) var(--ease-standard);
+}
+html.sidenav-collapsed .patch-sidenav { width: var(--patch-sidenav-w-collapsed); }
+html.sidenav-collapsed .patch-sidenav + .patch-page { margin-left: var(--patch-sidenav-w-collapsed); }
+
+.patch-sidenav-toggle {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    align-self: flex-end;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+}
+.patch-sidenav-toggle:hover { color: var(--text); border-color: var(--accent); }
+html.sidenav-collapsed .patch-sidenav-toggle { align-self: center; }
+
+.patch-sidenav-items { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; min-height: 0; flex: 1 1 auto; overflow-y: auto; }
+.patch-sidenav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-decoration: none;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background var(--duration-fast) var(--ease-standard), color var(--duration-fast) var(--ease-standard);
+}
+.patch-sidenav-item:hover { background: var(--bg-hover); color: var(--text); }
+.patch-sidenav-item.active { background: var(--accent-soft); color: var(--accent); }
+.patch-sidenav-icon { flex: 0 0 auto; width: 18px; height: 18px; }
+html.sidenav-collapsed .patch-sidenav-item { justify-content: center; padding: 9px 0; }
+html.sidenav-collapsed .patch-sidenav-label { display: none; }
+
+/* 左侧固定菜单仅在补丁中心登录态下展示（html.patch-auth）；未登录（登录卡片）/ 非补丁界面不展示 */
+html:not(.patch-auth) .patch-sidenav { display: none; }
+html:not(.patch-auth) .patch-sidenav + .patch-page { margin-left: 0; }

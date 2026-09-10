@@ -105,6 +105,62 @@ pub fn save_sessions_to_disk_async(data: &AppState) {
     });
 }
 
+// ── 自动打开浏览器（双击 cc-web.exe / start.bat 启动后直达 Web 界面） ──
+/// 监听地址与本地访问地址（编译期内嵌写死）
+const BIND_ADDR: &str = "0.0.0.0:3030";
+const WEB_URL: &str = "http://localhost:3030";
+
+/// 是否允许自动打开浏览器。
+/// 默认允许；如需后台/服务方式启动、或不想每次自动弹浏览器，
+/// 可设置环境变量 `CC_WEB_NO_BROWSER=1`，或启动参数加 `--no-browser`。
+fn browser_open_allowed() -> bool {
+    if std::env::var("CC_WEB_NO_BROWSER")
+        .map(|v| {
+            let v = v.trim().to_ascii_lowercase();
+            v == "1" || v == "true" || v == "yes" || v == "on"
+        })
+        .unwrap_or(false)
+    {
+        return false;
+    }
+    !std::env::args().skip(1).any(|arg| arg == "--no-browser")
+}
+
+/// 调用系统默认浏览器打开 URL。
+#[cfg(target_os = "windows")]
+fn open_browser(url: &str) {
+    // start "" "url"：把 url 交给系统默认浏览器（http 开头会直接打开而非搜索）
+    let _ = std::process::Command::new("cmd")
+        .args(["/C", "start", "", url])
+        .spawn();
+}
+
+#[cfg(target_os = "macos")]
+fn open_browser(url: &str) {
+    let _ = std::process::Command::new("open").arg(url).spawn();
+}
+
+#[cfg(target_os = "linux")]
+fn open_browser(url: &str) {
+    let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+fn open_browser(_url: &str) {}
+
+/// 服务已成功监听后，延后片刻自动打开浏览器。
+/// 延迟是为了让端口真正开始 accept，避免浏览器先弹出“无法访问”。
+fn auto_open_browser_after_start() {
+    if !browser_open_allowed() {
+        return;
+    }
+    println!("   🌐 自动打开浏览器: {}", WEB_URL);
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(600));
+        open_browser(WEB_URL);
+    });
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // 初始化结构化日志系统（日志只写入文件，控制台不输出）
@@ -117,7 +173,7 @@ async fn main() -> std::io::Result<()> {
 
     // ── 启动横幅（直接输出到控制台）──
     println!("🚀 CC-Web server starting...");
-    println!("📍 http://localhost:3030");
+    println!("📍 {}", WEB_URL);
 
     // Initialize AI assistant registry
     let mut registry = AssistantRegistry::new();
@@ -158,11 +214,17 @@ async fn main() -> std::io::Result<()> {
         local_executions: Mutex::new(std::collections::HashMap::new()),
     });
 
-    println!("   🔗 Listening on 0.0.0.0:3030");
+    let patch_servers = api::patch_config::patch_search_servers();
+    if patch_servers.is_empty() {
+        println!("   ⚠️ patch_search API: 未配置（src/patch_servers.json 内嵌地址为空）");
+    } else {
+        println!("   📄 patch_search API ({} 条): {}", patch_servers.len(), patch_servers.join(", "));
+    }
+    println!("   🔗 Listening on {}", BIND_ADDR);
     println!("   📝 Logs: ~/.cc-web/logs/");
     println!();
 
-    HttpServer::new(move || {
+    let server_builder = HttpServer::new(move || {
         let cors = Cors::default()
             .allow_any_origin()
             .allow_any_method()
@@ -194,12 +256,33 @@ async fn main() -> std::io::Result<()> {
             .route("/api/local-claude/{execution_id}/cancel", web::post().to(api::local_claude::cancel))
             // 调试 API：返回所有会话的实时状态快照
             .route("/api/debug/state", web::get().to(debug_state))
+            // 补丁中心配置：向前端下发 patch_search 后端地址（代码内写死，无需 patch_config.json）
+            .route("/api/patch-config", web::get().to(api::patch_config::get_patch_config))
             // Static files (fallback)
             .default_service(web::route().to(static_files::serve))
-    })
-    .bind("0.0.0.0:3030")?
-    .run()
-    .await
+    });
+
+    match server_builder.bind(BIND_ADDR) {
+        Ok(server) => {
+            // 已成功监听 → 打开浏览器直达 Web 界面
+            auto_open_browser_after_start();
+            server.run().await
+        }
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::AddrInUse {
+                // 端口被占用：多半是已有一个 cc-web 实例在运行。
+                // 此时不再报错退出，而是打开浏览器复用该实例。
+                println!("   ⚠️ {} 已被占用，疑似 cc-web 已在运行。", BIND_ADDR);
+                if browser_open_allowed() {
+                    println!("   🌐 打开已有实例: {}", WEB_URL);
+                    open_browser(WEB_URL);
+                }
+                Ok(())
+            } else {
+                Err(e)
+            }
+        }
+    }
 }
 
 /// 调试 API：返回所有会话的实时状态快照
